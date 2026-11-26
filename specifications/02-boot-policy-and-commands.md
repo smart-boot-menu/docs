@@ -41,4 +41,10 @@ Enables automatic rollback for OS updates and `sbm-core` A/B slots:
   - `timestamp_unix: Option<i64>`
   - `consecutive_failures: u8` (incremented pre-boot)
   - `status: BootAttemptStatus` (`Started | Confirmed | Failed | RolledBack`)
-- **After OS / `sbm-core` boots cleanly (`sbm-agent` or `sbm-core`):** Resets `consecutive_failures = 0`, sets `status = Confirmed`, and emits `BootSuccessReport` locally (to ESP state) and optionally to `sbm-server`.
+- After the OS boots cleanly, its reporter writes `BootSuccessReport` to the ESP. UEFI owns the attempt record and applies confirmation on its next start.
+
+### 0.0.1 recovery profile
+
+Create a fresh UUIDv4 for each recovery attempt before launch. Increment the prior failure count only for an unconfirmed attempt for the same target. Persist and flush `last_attempt.json` with status `started` before launch. Flush temporary data before publishing it and treat interrupted or malformed FAT records as unconfirmed. If recovery `StartImage` returns, mark the attempt failed and show the picker.
+
+Core writes and syncs `\EFI\sbm\state\boot-success.json` on the same ESP after the UI receives a live daemon snapshot and the Spec 03 handoff validates. The report contains `schema_version`, `attempt_id`, `target_id`, `confirmed_by`, and `confirmed_at_unix`. Require schema `1.0`, a current `started` record, matching IDs, target `sbm-core:slot-a`, and reporter `sbm-core-uki` before setting `confirmed` and resetting the count. A stale report cannot confirm a later attempt. Confirming an attempt twice is idempotent.
