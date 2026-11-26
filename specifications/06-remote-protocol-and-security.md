@@ -39,7 +39,29 @@ Every remote instruction sent from `sbm-server` to `sbm-uefi`, `sbm-core`, or `s
 - `required_scope: AuthScope`
 - `issuer_key_id: String`
 - `payload: CommandPayload` (e.g., `BootCommand`, `RunStoragePlan`, `RunOsInstall`, `RevokeEnrollment`)
-- `signature_ed25519: String` (hex-encoded Ed25519 signature over domain-separated canonical bytes `b"sbm-cmd-v1\0" || canonical_json(header + payload)`)
+- `signature_ed25519_hex: String` (lowercase hex Ed25519 signature; the prose name `signature_ed25519` in earlier drafts is this wire field, matching `sbm-protocol` and `test-vectors/command-envelope.v1.json`)
+
+#### 16.1 Command Signing Profile v1 (normative)
+
+The signature input is exactly:
+
+```text
+b"sbm-cmd-v1\0" || canonical_json
+```
+
+`COMMAND_SIGNING_DOMAIN_V1` in `sbm-protocol` is the domain prefix. `canonical_json` is the compact UTF-8 JSON object of every envelope field **except** `signature_ed25519_hex`, with no insignificant whitespace and with keys in this order:
+
+1. `schema_version`
+2. `command_id`
+3. `device_id`
+4. `sequence` (decimal integer)
+5. `issued_at_unix` (decimal integer)
+6. `expires_at_unix` (decimal integer)
+7. `required_scope`
+8. `issuer_key_id`
+9. `payload`
+
+`payload` uses the `sbm-protocol` 0.1 serde representation: internally tagged enums put the tag field first (`kind`, then `action` / `mode`), then variant fields in declaration order. Omitted optional fields are absent. Strings use standard JSON escaping. This profile is the serde_json compact form of those types, not RFC 8785. Verifiers and `sbm-server` must produce this byte string. A device persists `last_seen_sequence` only after the signature, `device_id`, and expiry checks succeed, including when it then rejects the command for scope. Invalid signatures must not advance the counter.
 
 ### Verification Rules (Enforced by `sbm-uefi`, `sbm-core`, `sbm-agent`)
 1. Verify Ed25519 signature against pinned `server_command_verify_key_ed25519`.
