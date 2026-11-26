@@ -25,21 +25,22 @@
   - CPU / SoC: **Apple M5** (`ARM64_T8142`)
   - OS: **macOS 27.0** (Darwin `27.0.0`, build `26A428`)
   - Toolchain verified: `rustc 1.100.0`, `cargo 1.100.0`, targets `aarch64-apple-darwin`, `wasm32-unknown-unknown`, `x86_64-unknown-uefi`, `aarch64-unknown-uefi`, `gh 2.101.0`, `brew`, `python3`, `node`, `jq`.
-  - Virtualization tools to install when Agent 3 (`sbm-lab`) begins: `brew install qemu swtpm`.
+  - `qemu-system-aarch64` 11.1.3 is installed. On 2026-11-26 its HVF accelerator aborted (`hvf_handle_exception`) before the probe ran. The passing U-Boot EFI probe used TCG (`-machine virt -cpu cortex-a57`). HVF is not the proven path.
 - **ABSOLUTE SAFETY RULE:** **NEVER modify this development workstation's macOS boot configuration, LocalPolicy, SIP, NVRAM boot-args, or physical NVMe partitions.**
-- **Verified Bare-Metal Linux / Asahi Support Status (Nov 2026):**
-  - **Verified Working (`linux-asahi` 7.5 target):** Devicetree, boot framebuffer (`simpledrm`), internal NVMe, keyboard & backlight, AICv3, UART, Watchdog, I²C, GPIO.
-  - **NOT Supported Yet (`TBA`):** Official Asahi installer (`no`), USB2, USB3, Thunderbolt, PCIe, DART, GPU, DCP, Wi-Fi, Bluetooth, Touchpad, Battery, Brightness, Speakers/Mic, Webcam, Suspend.
-  - **Firmware Caveat (`FB23916610`):** On M5 Pro/Max/Ultra, macOS 27.3 Golden Gate Beta (`mBoot-20457.60.65.0.1`) fixed a single-core custom raw boot object bug; base M5 `T8142` still awaits full peripheral drivers in `linux-asahi`.
+- **Asahi feature table for `T8142` (fetched 2026-11-26):**
+  - Installer `no`. This Mac is not an install target.
+  - Marked `linux-asahi` or `linux-asahi (7.5)`: devicetree, boot framebuffer, internal NVMe, keyboard, keyboard backlight, AICv3, UART, watchdog, I²C, GPIO. `(7.5)` is the upstream target on that page. The newest `AsahiLinux/linux` tag the same day is `v7.3.4`.
+  - `TBA`: USB2, USB3, Thunderbolt, PCIe, DART, GPU, DCP, Wi-Fi, Bluetooth, touchpad, battery, brightness, audio, webcam. PMU is `WIP`.
+  - M5 Pro/Max/Ultra (`T6050`, and `T6051` where the device list uses it) are a separate, still-`TBA` column. Apple feedback `FB23916610` was not fetched from Apple and is not a `T8142` result.
 - **Consequence for SBM 0.1:**
-  - Use the M5 MacBook Air as a **blazing-fast native ARM64 virtualization host** (`qemu-system-aarch64 -accel hvf` with AAVMF and `qemu_arm64` U-Boot) and cross-compiler for `x86_64-unknown-uefi` + `aarch64-unknown-uefi`.
-  - Physical Apple Silicon testing should start on a **supported M1/M2/M3 test Mac** (where `m1n1`, Asahi U-Boot, USB3 external boot, and `linux-asahi` are verified stable) or wait until upstream Asahi lands M5 (`T8142`) USB3/DART/PCIe support.
+  - Use the Mac as a build machine and as the TCG host for the QEMU `virt` U-Boot probe. Do not change its boot policy or partitions.
+  - Physical Apple Silicon testing starts on a machine whose installer cell is `yes` (M1, M2 except Mac Pro 2023, M3 except Ultra). M5 waits on upstream USB, DART, and PCIe.
 
 ---
 
 ## Open Apple Silicon External-Boot Experiment (`EXP-AS-EXT01`)
 
-- **Hypothesis:** A compact internal Apple Silicon stub (~1.5–2 GB total: Apple APFS stub + 512 MB ESP + `m1n1` + `AsahiLinux/u-boot` + `sbm-uefi.efi` + optional `< 1 GB` `sbm-core-aarch64-apple`) can discover and boot a `linux-asahi` OS installed entirely on an external **USB 3.2 Gen 2 (UASP/xHCI)** SSD without consuming further internal NVMe space.
+- **Hypothesis:** On a machine the Asahi installer already supports, an internal m1n1 plus U-Boot bootstrap can start the shared aarch64 SBM UEFI binary, which can then see a USB disk after U-Boot runs `usb start`. The 1.5–2 GB internal footprint is a target, not a measurement. A generic external image is not enough; the OS still needs the Apple device tree and a 16 KiB page kernel.
 - **Validation Path:**
-  1. Phase 1 (Safe VM validation in `sbm-lab`): Boot `sbm-uefi` (`aarch64-unknown-uefi`) under QEMU **`qemu_arm64` U-Boot** with an internal virtio-blk ESP and a hot-attached virtual USB xHCI SSD containing a BLS/UKI Linux install.
-  2. Phase 2 (Physical M1/M2/M3 test hardware — NEVER the dev M5 Mac until M5 USB3/DART lands): Validate U-Boot xHCI enumeration of external USB-C SSDs and boot-to-desktop latency.
+  1. Phase 1, done 2026-11-26 under QEMU `virt` (not Apple hardware, and not xHCI): `sbm-as/scripts/uboot-efi-poc.sh` started the probe, filled a GOP rectangle, wrote the ESP policy file, chainloaded a second EFI application, and found a file on a second USB-EHCI disk. Evidence: `research/validation/evidence/sbm-as-uboot-efi-2026-11-26.md`.
+  2. Phase 2 stays on physical M1/M2/M3 test hardware. It does not run on this M5 Mac.

@@ -32,6 +32,7 @@ Modeled after dedicated documentation repositories (`0SFS/docs`), this repositor
 ### Security, Hardware, Testing & Diagrams
 - [Threat Model & Safety Invariants](threat-model/README.md)
 - [Target Hardware Profiles & Experiments](hardware/target-hardware.md)
+- [Apple Silicon Boot Architecture](hardware/apple-silicon-boot-architecture.md)
 - [Engineering Targets, Testing & Benchmark Methodology](testing/benchmarks.md)
 - [System Architecture & Sequence Diagrams (Mermaid)](diagrams/architecture-diagrams.md)
 - [Validation & Documentation Layout](validation/layout.md)
