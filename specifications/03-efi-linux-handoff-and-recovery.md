@@ -30,3 +30,12 @@ When `sbm-uefi` launches `sbm-core` (or a Linux target with `sbm-agent`), contex
 2. Verifies each slot (`SlotA`, `SlotB`, `Removable`) references a **Unified Kernel Image (UKI)** path (e.g., `\EFI\sbm\recovery\slot-a\sbm-core-x86_64.efi`) and expected SHA-256 digest.
 3. Under Secure Boot, delegates PE/COFF signature verification to UEFI firmware / `shim` Loader Protocol v2 before `StartImage`.
 4. **Independent Recoverability Guarantee:** If `SlotA` fails health confirmation (`max_failed_attempts` reached) or fails hash/signature check, `sbm-uefi` automatically selects `SlotB` (or prompts for removable SBM recovery media).
+
+## 10. Return path from SBM Core
+
+SBM Core does not invent a second handoff struct. When the operator asks to leave the recovery environment, Core writes existing `sbm-protocol` values onto the ESP and reboots:
+
+1. `\EFI\sbm\handoff\requested-command.json` — a `BootCommand` (`reboot`, `shutdown`, or `boot_target` with `one_shot: true`).
+2. `\EFI\sbm\state\boot-success.json` — a `BootSuccessReport` once the management shell is up. `confirmed_by` is `sbm-core-uki` and `target_id` is `sbm-core:slot-a`.
+
+`sbm-uefi` owns what it does with those files on the next boot. The recovery UKI command line does not bake `sbm.handoff_sha256`. If that parameter is present, Core accepts `\EFI\sbm\handoff\current.json` only when the digest matches. If it is absent, Core still parses the file and marks it unverified.
