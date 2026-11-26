@@ -27,6 +27,8 @@ Strict least-privilege separation between read-only, boot-selection, recovery, a
 | `StorageDestructive` | `"storage_destructive"` | Execute destructive `StorageOperationPlan` inside `sbm-core` (requires step-up Passkey confirmation) | **NO** |
 | `Admin` | `"admin"` | Enroll/revoke devices, manage keys, rotate server signing key | **NO** |
 
+UEFI may select a discovered recovery target with the same `boot_select` mechanism used for other discovered targets. `BootRecovery` under `recovery_access` is for the Core environment. The 0.0.1 profile keeps remote execution disabled.
+
 ## 16. Signed Remote Command Envelopes (`CommandEnvelope`)
 
 Every remote instruction sent from `sbm-server` to `sbm-uefi`, `sbm-core`, or `sbm-agent` MUST be wrapped in a canonically serialized `CommandEnvelope`:
@@ -68,4 +70,4 @@ b"sbm-cmd-v1\0" || canonical_json
 2. Verify `device_id == local_device_id`.
 3. Verify `sequence > persisted_last_sequence` (anti-replay).
 4. Verify `now <= expires_at_unix` (when trusted RTC/clock is available; if UEFI RTC is known-unset, require short-lived online nonce challenge before accepting).
-5. Verify `required_scope` is permitted by both the local execution environment (`sbm-uefi` rejects anything beyond `BootSelect`!) and local device policy.
+5. Verify scope, action and target against local policy. UEFI handles read-only reporting and accepts only `boot_select` with a known `boot_target` for remote execution. A permitted scope does not authorize other payloads.
