@@ -22,7 +22,7 @@ Strict least-privilege separation between read-only, boot-selection, recovery, a
 |---|---|---|---|
 | `ReadOnly` | `"read_only"` | View device inventory, health, boot targets, logs | Yes |
 | `BootSelect` | `"boot_select"` | Set one-shot or default boot target (from known targets) | **Yes (only mutating remote scope allowed in UEFI)** |
-| `RecoveryAccess` | `"recovery_access"` | Open remote desktop/terminal and read-only diagnostics in `sbm-core` | **NO** |
+| `RecoveryAccess` | `"recovery_access"` | Boot `sbm-core` from the management OS, open remote desktop/terminal, read-only diagnostics | **NO.** `sbm-uefi` accepts only `read_only` and `boot_select` (`AuthScope::is_allowed_in_uefi`, §16 rule 5). A recovery target is selected with `BootSelect` / `BootTarget`. `BootRecovery` is not on the UEFI boot-policy poll. |
 | `OsInstall` | `"os_install"` | Execute verified `OsInstallPlan` inside `sbm-core` | **NO** |
 | `StorageDestructive` | `"storage_destructive"` | Execute destructive `StorageOperationPlan` inside `sbm-core` (requires step-up Passkey confirmation) | **NO** |
 | `Admin` | `"admin"` | Enroll/revoke devices, manage keys, rotate server signing key | **NO** |
@@ -63,7 +63,7 @@ b"sbm-cmd-v1\0" || canonical_json
 8. `issuer_key_id`
 9. `payload`
 
-`payload` uses the `sbm-protocol` 0.1 serde representation: internally tagged enums put the tag field first (`kind`, then `action` / `mode`), then variant fields in declaration order. Omitted optional fields are absent. Strings use standard JSON escaping. This profile is the serde_json compact form of those types, not RFC 8785. Verifiers and `sbm-server` must produce this byte string. A device persists `last_seen_sequence` only after the signature, `device_id`, and expiry checks succeed, including when it then rejects the command for scope. Invalid signatures must not advance the counter.
+`payload` uses the `sbm-protocol` 0.1 serde representation: internally tagged enums put the tag field first (`kind`, then `action` / `mode`), then variant fields in declaration order. Omitted optional fields are absent. Strings use standard JSON escaping. This profile is the serde_json compact form of those types, not RFC 8785. `sbm_protocol::command_signing_preimage` is that byte string, and `sbm-server` signs it. `test-vectors/command-signing.v1.json` publishes a test seed (not a production key) and the signatures for a boot selection, a recovery command with escaped text, and a revocation. A device persists `last_seen_sequence` only after the signature, `device_id`, and expiry checks succeed, including when it then rejects the command for scope. Invalid signatures must not advance the counter.
 
 ### Verification Rules (Enforced by `sbm-uefi`, `sbm-core`, `sbm-agent`)
 1. Verify Ed25519 signature against pinned `server_command_verify_key_ed25519`.

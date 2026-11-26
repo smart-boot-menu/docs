@@ -7,6 +7,7 @@
 A `BootCommand` represents an explicit local or remote instruction to select what executes next:
 - `BootTarget { target_id: BootTargetId, one_shot: bool, extra_cmdline_preset: Option<String> }`
   - *Security constraint:* `sbm-uefi` MUST NOT accept arbitrary untrusted kernel command-line strings remotely; only allowlisted preset names or signed target IDs are permitted in UEFI.
+  - *Canonical preset allowlist (`v1`):* `quiet`, `verbose`, `nomodeset`, and `diagnostic`. Both `sbm-server` and `sbm-uefi` MUST enforce this exact set and reject unknown presets.
 - `BootRecovery { slot: RecoverySlotPreference, mode: RecoveryLaunchMode }` (`Interactive | RemoteAssist | DiagnosticOnly | PlannedOperation { plan_id }`)
 - `RebootToFirmwareSetup`
 - `Shutdown` / `Reboot`
