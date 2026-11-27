@@ -1,10 +1,10 @@
 # Spec 03 — EFI-to-Linux handoff and recovery discovery
 
-**Status** Normative draft for protocol 1.0. The 0.0.1 profile covers independently qualified architecture-specific removable media on `x86_64` OVMF and `AArch64` AAVMF (with dual-architecture combined media preserved as an optional experimental extension). Section 9a defines the configurable installation/execution profiles and standards-based network recovery architecture staged across SBM 0.0.2–0.1 ([ADR-012](../architecture-decisions/ADR-012-profiles-network-recovery-modularity-and-ux.md)).
+**Status** Normative draft for protocol 1.0. The 0.0.1 profile covers independently qualified architecture-specific removable media on `x86_64` OVMF and `AArch64` AAVMF (with dual-architecture combined media preserved as an optional experimental extension). Section 9a defines the configurable installation/execution profiles (modeled as validated presets of shared configuration options) and standards-based network recovery architecture staged across SBM 0.0.2–0.1 ([ADR-012](../architecture-decisions/ADR-012-profiles-network-recovery-modularity-and-ux.md)).
 
 ## 8. EFI-to-Linux handoff
 
-UEFI writes the compact UTF-8 JSON representation of the shared `EfiHandoffPayload` to `\EFI\sbm\handoff\current.json` on its boot ESP. The payload schema stays at `1.0`. Use interactive launch mode with no pending command. The payload carries the attempt ID, UEFI version, platform, discovered-target snapshot, and optional timing and network fields. `discovered_targets` lists the targets the picker could launch at handoff time (visible and eligible); these are the only boot targets Core may offer or request (Spec 01 §4, Spec 02 §5a). Runtime data must exclude secrets.
+UEFI writes the compact UTF-8 JSON representation of the shared `EfiHandoffPayload` to `\EFI\sbm\handoff\current.json` on its boot ESP. The payload schema stays at `1.0`. Use interactive launch mode with no pending command. The payload carries the attempt ID, UEFI version, platform, discovered-target snapshot, and optional timing and network fields. Runtime data must exclude secrets.
 
 Before starting the UKI, UEFI must persist the attempt per Spec 02, flush the handoff file, and publish the following volatile variables with boot-service and runtime access. Text values are NUL-terminated UTF-16.
 
@@ -16,7 +16,7 @@ Before starting the UKI, UEFI must persist the attempt per Spec 02, flush the ha
 | `SbmBootAttemptId` | `d8f4a21c-7b6e-4c91-9e32-8a5c1f0e3b40` | Attempt ID in `current.json` |
 | `SbmHandoffSha256` | `d8f4a21c-7b6e-4c91-9e32-8a5c1f0e3b40` | Lowercase hex SHA-256 of the exact `current.json` bytes |
 
-On write or publication failure, report the error and return to the picker without starting Core. When the picker starts anything other than Core, or when Core's `StartImage` returns, it deletes the three `Sbm*` variables so a later program cannot mistake them for a current handoff. On Linux, resolve the ESP by the BLI PARTUUID, verify VFAT and GPT ESP type and that its parent is the boot medium supplying the verity pair, and revalidate an existing mount before reading or writing through it. In RAM mode carry the resolved boot-media identity across switch-root. Resolve ambiguity, missing identity, or a mismatched parent as an error without selecting the first ESP. Require the schema version, attempt ID, native platform, and digest to agree. A handoff is **integrated** only when all five variables are present, `LoaderEntrySelected` is `sbm-core:slot-a`, `SbmHandoffVersion` is `1.0`, `SbmBootAttemptId` equals the payload `attempt_id`, and `SbmHandoffSha256` matches the exact file bytes. Only an integrated handoff produces a success report or exposes boot targets. Missing or invalid handoff yields a local diagnostic and no success report. The digest checks consistency across boot stages and does not independently authenticate the ESP.
+On write or publication failure, report the error and return to the picker without starting Core. On Linux, resolve the ESP by the BLI PARTUUID, verify VFAT and GPT ESP type and that its parent is the boot medium supplying the verity pair, and revalidate an existing mount before reading or writing through it. In RAM mode carry the resolved boot-media identity across switch-root. Resolve ambiguity, missing identity, or a mismatched parent as an error without selecting the first ESP. Require the schema version, attempt ID, native platform, and digest to agree. Missing or invalid handoff yields a local diagnostic and no success report. The digest checks consistency across boot stages and does not independently authenticate the ESP.
 
 Standalone development images may still display legacy handoffs delivered through `sbm.handoff_sha256` and `sbm.esp_partuuid`. Standalone results do not satisfy the integrated handoff or confirm an integrated attempt.
 
@@ -24,22 +24,11 @@ Standalone development images may still display legacy handoffs delivered throug
 
 ### Manifest
 
-Read `\EFI\sbm\recovery\manifest.json` on the boot ESP only; recovery manifests on other ESPs are ignored in 0.0.1. Use the shared `RecoveryManifest` object with `schema_version`, `active_slot`, and `slots`. Each `RecoverySlotDescriptor` has `slot_name`, `uki_efi_path`, `sha256`, `version`, and `healthy`.
+Read `\EFI\sbm\recovery\manifest.json` on the boot ESP. Use the shared `RecoveryManifest` object with `schema_version`, `active_slot`, and `slots`. Each `RecoverySlotDescriptor` has `slot_name`, `uki_efi_path`, `sha256`, `version`, and `healthy`.
 
 The 0.0.1 schema version is `1.0` and the active slot is `slot-a`. For **primary architecture-specific media** (and 0.0.2 internal SSD installations), the producer writes one native `slot-a` descriptor using the canonical path for that architecture. For the **optional experimental dual-architecture profile**, the producer writes one `slot-a` descriptor per architecture under the same slot name; firmware ignores foreign-architecture descriptors during discovery. Validate the exact path and PE machine for the native entry. A duplicate native descriptor is ambiguous. Missing files, unreadable metadata, out-of-profile paths, architecture mismatch, or malformed and mismatched hashes make the entry ineligible.
 
 At menu startup, perform lightweight boot-ESP eligibility checks only (manifest schema, active slot, canonical native path, no duplicate native descriptor, `healthy == true`, valid 64-hex `sha256`, file existence and non-zero size, and native PE machine from the PE header prefix); do not eagerly hash foreign-architecture UKIs or block initial menu rendering on full-image hashing. Immediately before launching recovery, stream the native UKI once from a single open file handle in large sequential chunks (avoiding repeated reopen/seek calls), require `bytes_read == file_size`, and verify the full SHA-256 digest against `slot.sha256` before writing handoff or attempt state or calling `LoadImage`; fail closed on any I/O error, truncation, or digest mismatch. `healthy` is publisher eligibility and the digest is an integrity check. `verified_signature` must remain unknown (`None`) unless PE signature trust is independently established.
-
-The picker keeps four integrity states apart and never reports one as another:
-
-| State | Meaning | Where it is shown |
-|---|---|---|
-| Discovered | A loader exists with the native PE machine. No digest was published for it. | Ordinary OS entries |
-| Eligible, unverified | The startup checks above passed. The digest has not been computed yet. | Recovery entry at menu time |
-| Integrity verified | The full streamed SHA-256 matched `slot.sha256` immediately before launch. | Launch-time marker and diagnostics |
-| Firmware verified | Secure Boot is enforced and firmware `LoadImage` accepted the image. | Launch-time marker and diagnostics |
-
-A digest match is not a signature. It detects accidental or partial corruption of the UKI on the same medium as the manifest; it cannot authenticate a medium whose manifest an attacker can also rewrite. Authenticity comes from Secure Boot. With Secure Boot disabled the picker states that firmware did not verify the image. If verification fails, the entry becomes ineligible for the rest of that picker session and the picker shows why.
 
 | Architecture | Removable fallback path | Internal SSD NVRAM path (0.0.2+) | Slot A UKI path | PE machine |
 |---|---|---|---|---|
@@ -71,6 +60,8 @@ Use firmware `LoadImage` via the exact ESP and file device path. Do not retry re
 ## 9a. Installation & Execution Profiles and Network Recovery Bootstrap (SBM 0.0.2–0.1+)
 
 Per [ADR-012](../architecture-decisions/ADR-012-profiles-network-recovery-modularity-and-ux.md), SBM separates the minimal UEFI boot manager from how and where `sbm-core` and optional modules are stored and executed.
+
+**Shared-Options Preset Rule:** Implementations MUST model these profiles as **validated presets of shared configuration options** driving one shared assembly/install/runtime pipeline—NOT duplicated per-profile implementations. Presets targeting future milestones (anything other than `offline-full` in SBM 0.0.1) MUST fail closed during validation before creating output directories or mutating storage.
 
 ### Supported Profiles
 

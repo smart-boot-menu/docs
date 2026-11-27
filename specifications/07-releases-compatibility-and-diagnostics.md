@@ -34,7 +34,14 @@ Per [ADR-009](../architecture-decisions/ADR-009-dual-architecture-offline-previe
 - **Primary `aarch64` media:** `sbm-<version>-uefi-aarch64.raw` and `sbm-<version>-uefi-aarch64.raw.zst` (`media[].architectures: ["aarch64"]`), accompanied by a SHA-256 sidecar (`*.raw.zst.sha256`).
 - **Optional experimental dual-architecture media (non-gating):** `sbm-<version>-uefi-dualarch.raw` and `sbm-<version>-uefi-dualarch.raw.zst` (`media[].architectures: ["x86_64", "aarch64"]`). When built, it MUST be explicitly labeled experimental and MUST NOT block qualification or publication of either primary per-architecture release.
 
-Each published manifest (`release-manifest.v1.json`) MUST populate `artifacts` with the exact final bytes of every included native firmware binary (`SbmUefi`) and recovery UKI (`SbmCoreUki`), and populate `media` with both raw and compressed forms of the published image(s). Digests are lowercase hexadecimal SHA-256. The companion `build-receipt.json` records source and dependency SHAs, builder tools and package lists, partition IDs and verity hashes, and exact build and verification commands.
+Each published manifest (`release-manifest.v1.json`) MUST populate `artifacts` with the exact final bytes of every included native firmware binary (`SbmUefi`) and recovery UKI (`SbmCoreUki`), and populate `media` with both raw and compressed forms of the published image(s). Digests are lowercase hexadecimal SHA-256. The companion `build-receipt.json` records source and dependency SHAs, builder tools and package lists, partition IDs and verity hashes, trust-boundary flags, and exact build and verification commands.
+
+### Release Trust Tiers: Development Releases vs. Consumer-Ready Releases
+
+Per [ADR-012](../architecture-decisions/ADR-012-profiles-network-recovery-modularity-and-ux.md) §7, manifests and release notes MUST distinguish two release trust tiers:
+
+1. **Development / Preview Releases (e.g., SBM 0.0.1–0.0.3):** MAY publish unsigned or dev-key-signed artifacts with narrower, explicitly documented trust and hardware compatibility. `build-receipt.json` MUST explicitly record `production_secure_boot_claimed: false` and `production_tuf_signed: false` (never inferring trust from self-signed or unverified PE certificates), and release documentation MUST note that physical UEFI systems require Secure Boot disabled or custom test keys enrolled.
+2. **Consumer-Ready Releases (SBM 0.2+ / Stable Channel):** MUST account for **production Secure Boot compatibility** (`rhboot/shim` + SBAT + NX + Microsoft UEFI CA 2023 / `shim-review` signed boot chain and signed UKIs) and verified TUF/Sigstore release metadata so standard Secure-Boot-enabled consumer PCs boot out of the box without weakening firmware security.
 
 ### Optional Flasher & Provisioning Catalog Feed (`sbm-os-list.json`)
 

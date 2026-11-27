@@ -1,7 +1,7 @@
 # ADR-012: Configurable Installation Profiles, Network Recovery, 0SFS-Style Modularity, SBM Manager Naming & First-Principles UX
 
-- **Status:** Accepted (Owner Product & Architecture Direction — Staged Across SBM 0.0.1–0.1+)
-- **Date:** 2026-11-26
+- **Status:** Accepted (Owner Product & Architecture Direction — Staged Across SBM 0.0.1–0.2)
+- **Date:** 2026-11-26 (Clarified 2026-11-27)
 - **Related ADRs:** [ADR-001](ADR-001-two-tier-uefi-and-linux-architecture.md), [ADR-002](ADR-002-graphics-and-gui-separation.md), [ADR-003](ADR-003-sbm-core-minimal-linux-and-apple-silicon-asahi.md), [ADR-007](ADR-007-remote-management-server-and-security-protocol.md), [ADR-009](ADR-009-dual-architecture-offline-preview-media.md), [ADR-010](ADR-010-open-source-reuse-and-engineering-principles.md), [ADR-011](ADR-011-native-preview-internal-install-and-media-creator.md)
 - **Supporting Research:**
   - `research/architecture/network-recovery-and-modularity-evaluation.md`
@@ -12,22 +12,25 @@
 
 Smart Boot Menu is designed to serve both local everyday multi-boot/recovery users and one of its primary product use cases: **remotely repairing a computer whose installed operating system is completely broken**, without forcing monolithic media, mandatory cloud services, or unauthorized touches to internal disks.
 
-To align engineering execution with long-term product architecture without derailing the immediate SBM 0.0.1–0.0.3 milestones, this ADR ratifies six owner product and architecture decisions:
+To align engineering execution with long-term product architecture without derailing the immediate SBM 0.0.1–0.0.3 milestones, this ADR ratifies the owner's product and architecture decisions:
 
-1. Independently configurable installation and execution profiles (from a `< 1 MiB` EFI boot manager up to full offline and modular deployments).
+1. Independently configurable installation and execution profiles (implemented as **validated presets of shared configuration options**, not duplicated implementations).
 2. Standards-based on-demand network recovery and revocable, ephemeral remote repair sessions.
 3. 0SFS-style maximum modularity built on existing `mkosi`, `systemd-sysext`/`systemd-confext`, signed `dm-verity` DDIs, and `systemd-sysupdate` (without inventing a general-purpose package manager).
 4. Product naming: **`SBM Manager`** for the user-facing desktop provisioning and configuration application, retaining **`SBM Core`** as the internal management OS name for now.
 5. First-principles November 2026 UX philosophy evaluated primarily in Agent 18's native interactive simulator (Track A).
 6. Concrete initial engineering performance targets, strictly distinguished from measured capabilities.
+7. Explicit release trust boundary: **consumer-ready releases** MUST account for **production Secure Boot compatibility**, while **development releases** (such as SBM 0.0.1) may carry narrower, explicitly documented trust and hardware compatibility without pulling future capabilities prematurely into 0.0.1.
 
 ---
 
 ## Decision
 
-### 1. Independently Configurable Installation & Execution Profiles
+### 1. Independently Configurable Installation & Execution Profiles (Validated Presets, Not Duplicated Implementations)
 
-SBM MUST support six independently configurable installation and execution profiles rather than coupling the UEFI boot manager to a single monolithic recovery image (normative layout and safety rules in [Spec 03](../specifications/03-efi-linux-handoff-and-recovery.md) §9a):
+SBM MUST support six independently configurable installation and execution profiles rather than coupling the UEFI boot manager to a single monolithic recovery image (normative layout and safety rules in [Spec 03](../specifications/03-efi-linux-handoff-and-recovery.md) §9a).
+
+**Implementation Principle — Shared Options, Single Pipeline:** The six profiles MUST be modeled and implemented as **validated presets over shared configuration options** (e.g., payload inclusion, network bootstrap enablement, cache medium policy, RAM-residency policy, extension set, and minimum ESP sizing) driving a **single shared assembly/installer/runtime pipeline**—**NOT** six duplicated implementations or forked code paths. Unsupported presets for a given release milestone MUST fail closed during configuration validation without prematurely introducing unverified future runtime code into earlier releases (exemplified by `install`'s declarative `ProfilePreset` schema).
 
 | Profile ID | Description | Persistent Storage Footprint | Allowed Internal SSD Writes |
 |---|---|---|---|
@@ -105,6 +108,14 @@ The following initial engineering targets are adopted as design goals in [docs/t
 - Zero unauthorized physical disk modifications
 - Existing dual-architecture combined image preserved strictly as **optional and experimental** (non-gating, per [ADR-009](ADR-009-dual-architecture-offline-preview-media.md))
 
+### 7. Trust & Secure Boot Compatibility: Consumer-Ready Releases vs. Development Releases
+
+Per [Spec 07](../specifications/07-releases-compatibility-and-diagnostics.md) §17:
+
+- **Consumer-Ready Releases:** Any release marketed or recommended for general consumer PCs MUST account for **production Secure Boot compatibility** (signed boot chain via `rhboot/shim` + SBAT + NX + Microsoft UEFI CA 2023 / `shim-review` enrollment, signed `sbm-uefi` and `sbm-core` UKIs, and verified TUF/Sigstore release signatures) so modern Secure-Boot-enabled machines can boot SBM without requiring users to disable firmware Secure Boot or risk BitLocker recovery lockouts.
+- **Development Releases (e.g., SBM 0.0.1–0.0.3 Previews):** Development and early-milestone releases MAY carry **narrower, explicitly documented trust and hardware compatibility**—specifically unsigned local/CI binaries with `production_secure_boot_claimed: false` and `production_tuf_signed: false` in `build-receipt.json`, enrolled test-key OVMF Secure Boot negative/positive verification in CI, and explicit user documentation that Secure Boot must be disabled (or custom test keys enrolled) on physical machines.
+- **No Premature Scope Creep Into 0.0.1:** Production Secure Boot signing (`shim-review`), network recovery, and runtime `systemd-sysext` modularity remain explicitly staged after SBM 0.0.1.
+
 ---
 
 ## Incremental Delivery & Non-Disruption Sequencing
@@ -112,13 +123,13 @@ The following initial engineering targets are adopted as design goals in [docs/t
 These capabilities MUST be delivered incrementally without destabilizing active engineering tracks (Agents 13, 16, 18):
 
 1. **Tracks A & B (Continuous Parallel):** Agent 18's native interactive simulator (primary UX refinement workbench) + Agent 16's OSS developer infrastructure.
-2. **SBM 0.0.1:** Independently qualified per-arch offline recovery media (`x86_64`, `aarch64`; dual-arch optional experimental), UEFI → Core handoff, GParted, reboot, and zero-code `sbm-os-list.json`.
+2. **SBM 0.0.1 (Development Release):** Independently qualified per-arch offline recovery media (`x86_64`, `aarch64`; dual-arch optional experimental), UEFI → Core handoff, GParted, reboot, and explicit development trust boundary (`production_secure_boot_claimed: false`).
 3. **SBM 0.0.2:** Persistent internal SSD installation into available space—supporting both **`efi-only` (`< 1 MiB`, independently useful & upgradeable)** and **offline/cached internal Core**—plus `efibootmgr` registration, uninstall, and recovery.
 4. **SBM 0.0.3:** **`SBM Manager` MVP** (profile config, USB flashing, cache/module selection), allowlisted guided partition resizing, and **initial signed `systemd-sysext` modularity** (splitting optional tools out of the `< 500 MiB` compressed base).
 5. **SBM 0.1:** **On-Demand Network Recovery & Ephemeral Remote Repair** (`SBM Manager` recovery USB preconfiguration, UEFI HTTP(S) Boot + signed minimal Linux Network-Bootstrap UKI, `ram-only` zero-SSD-touch mode, authorized caches, full `systemd-sysext`/`confext` download/cache/activate/deactivate/remove lifecycle), Advanced OS Installation (`sbm-catalog`), and optional `sbm-server` remote management.
-6. **SBM 0.2:** Apple Silicon physical support (`sbm-as`), production Secure Boot / `shim-review`, and public website (`smart-boot-menu.github.io`).
+6. **SBM 0.2 (Consumer-Ready Trust & Expanded Hardware):** Production Secure Boot compatibility (`rhboot/shim` + SBAT + NX + `shim-review` / Microsoft UEFI CA 2023), signed TUF/Sigstore distribution trust, Apple Silicon physical support (`sbm-as`), and public website (`smart-boot-menu.github.io`).
 
 ## Consequences
 
-- **Positive:** Unlocks SBM's flagship remote-repair and minimal-EFI use cases without bloating `0.0.1` or inventing a custom package manager or network boot protocol; preserves strict non-destructive storage and revocable security boundaries; unifies desktop provisioning under `SBM Manager`; and turns Track A's native simulator into the daily first-principles UX studio.
+- **Positive:** Unlocks SBM's flagship remote-repair and minimal-EFI use cases via shared validated configuration presets rather than six duplicated implementations; keeps 0.0.1 focused and honest about its development trust boundary while preserving production Secure Boot as a hard requirement for consumer-ready releases; preserves strict non-destructive storage and revocable security boundaries; unifies desktop provisioning under `SBM Manager`; and turns Track A's native simulator into the daily first-principles UX studio.
 - **Trade-offs:** Expanding `SBM Manager` beyond basic USB flashing means the `0.0.3` evaluation must carefully weigh a minimal `rpi-imager` fork against a thin Rust/Iced `SBM Manager` app reusing mature OS flashing backends; maintaining strict `SYSEXT_LEVEL` compatibility and `< 500 MiB` base discipline requires automated size and image-policy gates in CI starting in `0.0.3`.
