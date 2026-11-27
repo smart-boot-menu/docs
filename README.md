@@ -37,6 +37,7 @@ Modeled after dedicated documentation repositories (`0SFS/docs`), this repositor
 - [Target Hardware Profiles & Experiments](hardware/target-hardware.md)
 - [Apple Silicon Boot Architecture](hardware/apple-silicon-boot-architecture.md)
 - [Engineering Targets, Testing Tiers & Benchmark Methodology](testing/benchmarks.md)
+- [Tiered Development Workflow & Quick-Start (`just`)](testing/development-workflow.md)
 - [System Architecture & Sequence Diagrams (Mermaid)](diagrams/architecture-diagrams.md)
 - [Validation & Documentation Layout](validation/layout.md)
 
