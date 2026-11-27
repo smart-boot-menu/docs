@@ -19,6 +19,7 @@ Modeled after dedicated documentation repositories (`0SFS/docs`), this repositor
 - [ADR-007: Self-Hosted Server Stack, Cryptographic Identity & Remote Protocol](architecture-decisions/ADR-007-remote-management-server-and-security-protocol.md)
 - [ADR-008: Virtualization, Emulation, Fault Injection & Benchmark Methodology](architecture-decisions/ADR-008-testing-virtualization-and-benchmark-methodology.md)
 - [ADR-009 — Dual-architecture offline preview media](architecture-decisions/ADR-009-dual-architecture-offline-preview-media.md)
+- [ADR-010: Open-Source Reuse & Engineering Principles](architecture-decisions/ADR-010-open-source-reuse-and-engineering-principles.md)
 
 ### Versioned Specifications (`specifications/`)
 - [Specifications Index & Versioning Policy](specifications/README.md)
