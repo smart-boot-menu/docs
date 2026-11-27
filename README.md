@@ -18,8 +18,9 @@ Modeled after dedicated documentation repositories (`0SFS/docs`), this repositor
 - [ADR-006: Storage Safety Model & Wrapping Mature Filesystem Utilities](architecture-decisions/ADR-006-storage-safety-and-tool-wrapping.md)
 - [ADR-007: Self-Hosted Server Stack, Cryptographic Identity & Remote Protocol](architecture-decisions/ADR-007-remote-management-server-and-security-protocol.md)
 - [ADR-008: Virtualization, Emulation, Fault Injection & Benchmark Methodology](architecture-decisions/ADR-008-testing-virtualization-and-benchmark-methodology.md)
-- [ADR-009 — Dual-architecture offline preview media](architecture-decisions/ADR-009-dual-architecture-offline-preview-media.md)
+- [ADR-009: Architecture-Specific Offline Preview Media (With Optional Experimental Dual-Arch)](architecture-decisions/ADR-009-dual-architecture-offline-preview-media.md)
 - [ADR-010: Open-Source Reuse & Engineering Principles](architecture-decisions/ADR-010-open-source-reuse-and-engineering-principles.md)
+- [ADR-011: Native Interactive UI Preview, OSS Dev Infrastructure, Internal SSD Installation & Media Creator Strategy](architecture-decisions/ADR-011-native-preview-internal-install-and-media-creator.md)
 
 ### Versioned Specifications (`specifications/`)
 - [Specifications Index & Versioning Policy](specifications/README.md)
@@ -35,7 +36,7 @@ Modeled after dedicated documentation repositories (`0SFS/docs`), this repositor
 - [Threat Model & Safety Invariants](threat-model/README.md)
 - [Target Hardware Profiles & Experiments](hardware/target-hardware.md)
 - [Apple Silicon Boot Architecture](hardware/apple-silicon-boot-architecture.md)
-- [Engineering Targets, Testing & Benchmark Methodology](testing/benchmarks.md)
+- [Engineering Targets, Testing Tiers & Benchmark Methodology](testing/benchmarks.md)
 - [System Architecture & Sequence Diagrams (Mermaid)](diagrams/architecture-diagrams.md)
 - [Validation & Documentation Layout](validation/layout.md)
 
@@ -44,7 +45,7 @@ Modeled after dedicated documentation repositories (`0SFS/docs`), this repositor
 Every document distinguishes:
 - **Requirement (Normative):** Mandatory behavior (`MUST` / `MUST NOT` per RFC 2119).
 - **Validated Decision:** Accepted ADR backed by primary-source evidence or test validation.
-- **Architectural Proposal:** Concrete design pending proof-of-concept validation in SBM 0.1.
+- **Architectural Proposal:** Concrete design pending proof-of-concept validation.
 - **Open Research Question:** Explicitly unverified area with a defined experiment to resolve it.
 
 ## License

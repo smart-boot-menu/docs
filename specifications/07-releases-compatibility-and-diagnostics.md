@@ -4,9 +4,9 @@
 
 ## 17. Artifact & Release Manifests (`ReleaseManifest`)
 
-Publish trusted releases with TUF and Sigstore/Cosign verification. The 0.0.1 beta integration artifact uses the same manifest with hashes and an evidence receipt. Trust claims require a separate signed distribution gate.
-- `schema_version: "1.0"` for the original format or `"1.1"` when publishing combined boot media
-- `release_version: String` (SemVer, e.g. `"0.1.0"`)
+Publish trusted releases with TUF and Sigstore/Cosign verification. The 0.0.1 beta integration artifacts use the same manifest with hashes and an evidence receipt. Trust claims require a separate signed distribution gate.
+- `schema_version: "1.0"` for the original format or `"1.1"` when publishing bootable media images
+- `release_version: String` (SemVer, e.g. `"0.0.1"`, `"0.0.2"`, `"0.1.0"`)
 - `channel: ReleaseChannel` (`Stable | Beta | Nightly`)
 - `published_at_unix: i64`
 - `git_commit: String`
@@ -26,9 +26,21 @@ Publish trusted releases with TUF and Sigstore/Cosign verification. The 0.0.1 be
   - `sha256: String`
   - `architectures: Vec<CpuArch>`
 
-The 0.0.1 manifest lists both native firmware binaries and both UKIs as component artifacts using their final bytes. It lists both compressed and raw forms of the same image under `media`, with architectures `["x86_64", "aarch64"]`. Use `sbm-0.0.1-uefi-dualarch.raw` and `sbm-0.0.1-uefi-dualarch.raw.zst` as filenames and publish a SHA-256 sidecar for the compressed image. Store the manifest as `release-manifest.v1.json`. Digests are lowercase hexadecimal SHA-256. The build receipt records source and dependency SHAs, tools and packages, partition IDs and hashes, and the build and verification commands.
+### Canonical Media Naming & Distribution Policy (SBM 0.0.1+)
 
-Readers with 1.0 support can continue consuming 1.0 manifests without `media`. Consumers that need combined media must add explicit 1.1 support and validate the media digest and architecture list. The protocol version remains 1.0.
+Per [ADR-009](../architecture-decisions/ADR-009-dual-architecture-offline-preview-media.md), **architecture-specific bootable images** are the primary recommended release artifacts and are qualified independently:
+
+- **Primary `x86_64` media:** `sbm-<version>-uefi-x86_64.raw` and `sbm-<version>-uefi-x86_64.raw.zst` (`media[].architectures: ["x86_64"]`), accompanied by a SHA-256 sidecar (`*.raw.zst.sha256`).
+- **Primary `aarch64` media:** `sbm-<version>-uefi-aarch64.raw` and `sbm-<version>-uefi-aarch64.raw.zst` (`media[].architectures: ["aarch64"]`), accompanied by a SHA-256 sidecar (`*.raw.zst.sha256`).
+- **Optional experimental dual-architecture media (non-gating):** `sbm-<version>-uefi-dualarch.raw` and `sbm-<version>-uefi-dualarch.raw.zst` (`media[].architectures: ["x86_64", "aarch64"]`). When built, it MUST be explicitly labeled experimental and MUST NOT block qualification or publication of either primary per-architecture release.
+
+Each published manifest (`release-manifest.v1.json`) MUST populate `artifacts` with the exact final bytes of every included native firmware binary (`SbmUefi`) and recovery UKI (`SbmCoreUki`), and populate `media` with both raw and compressed forms of the published image(s). Digests are lowercase hexadecimal SHA-256. The companion `build-receipt.json` records source and dependency SHAs, builder tools and package lists, partition IDs and verity hashes, and exact build and verification commands.
+
+### Optional Media Flasher Repository Feed (`sbm-os-list.json`)
+
+To enable direct reuse of existing cross-platform flashers (specifically **Raspberry Pi Imager `>= 2.0.11`** via `--repo` or **App Options -> Content Repository**; see [ADR-011](../architecture-decisions/ADR-011-native-preview-internal-install-and-media-creator.md)), releases MAY additionally publish a schema-validated `sbm-os-list.json` conforming to `rpi-imager`'s v4 OS list JSON schema (`url`, `image_download_size`, `image_download_sha256`, `extract_size`, `extract_sha256`, `architecture`, omitting `init_format`).
+
+Readers with `1.0` support can continue consuming `1.0` manifests without `media`. Consumers that use `media` must validate the `1.1` schema version, media digest, and architecture list. The protocol version remains `1.0`.
 
 ## 18. Compatibility Negotiation (`CapabilityHello`, `ProtocolVersion`)
 

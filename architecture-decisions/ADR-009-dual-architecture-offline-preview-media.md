@@ -1,6 +1,15 @@
 # ADR-009 — Dual-architecture offline preview media
 
-**Status** Accepted design for 0.0.1. VM qualification is pending.
+**Status** Accepted design for 0.0.1 (`sbm-0.0.1-uefi-dualarch.raw` verified in VM lab; physical hardware pending). **Amended (2026-11-26, pending Agent 11 review):** architecture-specific distributions are **recommended**; the universal dual-architecture image is **experimental and optional**; local development builds default to native architecture only.
+
+## Distribution Policy (2026-11-26 Amendment)
+
+- **Recommended distributions:** Architecture-specific single-architecture images (`x86_64` and generic `aarch64`) are the recommended user and CI distributions. Single-architecture media halves download size (~1.3 GiB vs ~2.2 GiB raw), avoids cross-architecture emulation during local builds, and keeps firmware startup free of foreign-architecture artifacts.
+- **Experimental / optional universal image:** The combined dual-architecture image (`sbm-<version>-uefi-dualarch.raw[.zst]`) remains supported as an **experimental, optional** convenience artifact for technicians carrying one multi-architecture USB drive. It is **not** required for ordinary development or default release lanes.
+- **Apple Silicon:** Remains a separate experimental platform track (`sbm-as`, `kernel-16k` Fedora Asahi Minimal; see ADR-003 and ADR-005).
+- **Local development default:** Local development builds (`sbm-uefi`, `sbm-core`, `just`) MUST default to the host's native architecture (`aarch64` on Apple Silicon, `x86_64` on x86-64 hosts) with compression disabled. Cross-architecture and dual-architecture builds are explicit opt-in operations reserved for integration/release qualification or native remote/CI builders.
+
+## Original 0.0.1 Dual-Architecture Design (Preserved for Optional Universal Media)
 
 The first integration artifact is one removable GPT image qualified byte-for-byte on x86_64 OVMF and AArch64 AAVMF. A shared ESP contains native EFI entry points and recovery UKIs. Keep mkosi's native verity pairs in the image. This allows each kernel to select its intended immutable root without a partition scanner or a second image-building stack.
 
