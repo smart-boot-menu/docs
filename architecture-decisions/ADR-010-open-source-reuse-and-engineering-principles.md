@@ -109,10 +109,10 @@ Reuse never overrides Smart Boot Menu's non-negotiable invariants:
 
 ## Operational Enforcement
 
-- **Canonical Agent Rules:** `.github/AGENTS.md` codifies these principles for every repository and autonomous agent, with the operational Build-vs-Reuse Evaluation checklist in `.github/agent-reference.md`.
-- **Repository Discovery:** Every repository's `AGENTS.md` links canonically to `.github/AGENTS.md`, `.github/agent-reference.md`, and this ADR—including explicit instructions for independently launched / single-repository agents that may not auto-discover organization-level files.
+- **Central Agent Documentation (0SFS Pattern):** All universal rules, operational checklists, and repository-specific guardrails live centrally in `.github/AGENTS.md` and `.github/agent-reference.md` rather than duplicated per repository.
+- **Minimal Repository Pointer Stubs:** Each individual repository's `AGENTS.md` is a minimal 5-line pointer referencing `smart-boot-menu/.github/AGENTS.md` (both the GitHub URL for independently launched single-repo agents and the local `../.github/AGENTS.md` path).
 - **Orchestration & Templates:** Agent launch prompts (`sbm/agents/`), pull request checklists (`.github/PULL_REQUEST_TEMPLATE.md`), and RFC templates (`.github/ISSUE_TEMPLATE/rfc_interface.yml`) require proportional build-versus-reuse evaluation.
-- **Single Source of Truth:** Do not copy the full policy into individual repositories; link to `.github/AGENTS.md` and this ADR instead.
+- **Single Source of Truth:** Do not copy agent policies or repository rulebooks into individual repositories; maintain them centrally in `.github/AGENTS.md`, `.github/agent-reference.md`, and this ADR.
 
 ## Consequences
 
