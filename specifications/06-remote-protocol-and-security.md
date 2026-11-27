@@ -71,3 +71,22 @@ b"sbm-cmd-v1\0" || canonical_json
 3. Verify `sequence > persisted_last_sequence` (anti-replay).
 4. Verify `now <= expires_at_unix` (when trusted RTC/clock is available; if UEFI RTC is known-unset, require short-lived online nonce challenge before accepting).
 5. Verify scope, action and target against local policy. UEFI handles read-only reporting and accepts only `boot_select` with a known `boot_target` for remote execution. A permitted scope does not authorize other payloads.
+
+## 16a. Ephemeral Remote Recovery Sessions (`SBM Manager` Recovery USB, SBM 0.1+)
+
+Per [ADR-012](../architecture-decisions/ADR-012-profiles-network-recovery-modularity-and-ux.md), a primary SBM use case is preparing a recovery USB with **`SBM Manager`** on a working computer to remotely repair a target computer whose installed OS is completely broken. Because a recovery USB is removable physical media that can be lost, lent, or reused, ephemeral remote recovery sessions MUST enforce stricter rules than persistent fleet enrollment (§14):
+
+1. **Opt-In Only:** Remote access is **disabled by default** on every recovery USB unless the owner explicitly enables an ephemeral remote-recovery session in `SBM Manager` (or locally inside `sbm-core`).
+2. **Zero Permanent Shared Credentials on USB:** A recovery USB MUST NEVER store long-lived admin private keys, reusable fleet credentials, static SSH passwords, or permanent shared secrets.
+3. **Zero Unattended Arbitrary Command Execution:** Recovery USBs MUST NOT carry auto-executing scripts or unattended root command hooks. Any remote session connects only inside authenticated `sbm-core` (never inside `sbm-uefi`) and is restricted to the explicitly authorized session scopes.
+4. **Ephemeral Session Grant (`EphemeralRecoveryGrant`):** When enabled in `SBM Manager`, the USB stores only a time-bounded, single-session grant containing:
+   - `session_id` (UUIDv7)
+   - `rendezvous_endpoint` + pinned server/peer CA or WireGuard/Ed25519 public key fingerprint
+   - `one_time_bootstrap_token` (short-lived, single-use, invalidated upon first handshake or expiry)
+   - `expires_at_unix` (explicit short TTL, e.g., hours—never indefinite)
+   - `allowed_scopes` (explicit least-privilege subset, e.g., `recovery_access`, optionally `storage_destructive` with explicit step-up confirmation)
+5. **End-to-End Authenticated & Encrypted Transport:** On boot into verified `sbm-core`, the target generates a **fresh in-RAM ephemeral keypair** (never written to internal SSDs), authenticates the pinned owner/relay public key, establishes an end-to-end encrypted session (e.g., WireGuard / mTLS + WayVNC/PTY proxy), and binds all interactive or command actions to that single session.
+6. **Local Visibility & Immediate Revocation:**
+   - The local display MUST show an unmistakable active-session banner (peer fingerprint / session ID, elapsed time, and granted scope) whenever a remote recovery session is active or awaiting connection.
+   - A single local keypress/UI button (**Revoke & Disconnect**) MUST immediately terminate the session and wipe the in-RAM ephemeral session keys.
+   - The owner MAY revoke the grant remotely at any time from `SBM Manager` or `sbm-server`; the session automatically expires and revokes on exit, TTL expiry, or reboot.

@@ -1,6 +1,6 @@
 # Spec 03 — EFI-to-Linux handoff and recovery discovery
 
-**Status** Normative draft for protocol 1.0. The 0.0.1 profile covers independently qualified architecture-specific removable media on `x86_64` OVMF and `AArch64` AAVMF (with dual-architecture combined media preserved as an optional experimental extension).
+**Status** Normative draft for protocol 1.0. The 0.0.1 profile covers independently qualified architecture-specific removable media on `x86_64` OVMF and `AArch64` AAVMF (with dual-architecture combined media preserved as an optional experimental extension). Section 9a defines the configurable installation/execution profiles and standards-based network recovery architecture staged across SBM 0.0.2–0.1 ([ADR-012](../architecture-decisions/ADR-012-profiles-network-recovery-modularity-and-ux.md)).
 
 ## 8. EFI-to-Linux handoff
 
@@ -49,13 +49,51 @@ Use a protective MBR and GPT:
    - In order, lay out 5 partitions: FAT32 ESP (>= 512 MiB, >= 64 MiB free after both menus and both UKIs), `x86_64` EROFS root, `x86_64` verity hash, `AArch64` EROFS root, and `AArch64` verity hash.
    - Preserved for specialized multi-architecture operator media; not a recommended consumer distribution or mandatory release gate (see [ADR-009](../architecture-decisions/ADR-009-dual-architecture-offline-preview-media.md)).
 3. **Internal SSD Profile (SBM 0.0.2+):**
-   - Installs only the target machine's native architecture (`\EFI\sbm\sbm-<arch>.efi`, native Slot A UKI, manifest, and native `root-<arch>` + `root-<arch>-verity` partitions with exact preserved DPS GUIDs/PARTUUIDs) into existing unallocated GPT space (see [Spec 04](04-storage-and-installation-plans.md) §11a).
+   - Supports either **`efi-only`** (minimal `\EFI\sbm\sbm-<arch>.efi` targeting `< 1 MiB` + config/handoff metadata on the existing ESP, with zero additional partitions) or **offline/cached internal Core** (native `\EFI\sbm\sbm-<arch>.efi`, native Slot A UKI, manifest, and native `root-<arch>` + `root-<arch>-verity` partitions with exact preserved DPS GUIDs/PARTUUIDs in existing unallocated GPT space; see [Spec 04](04-storage-and-installation-plans.md) §11a).
 
 Use a native `mkosi` UKI with the complete `.cmdline`, including its generated `roothash`. Verify during packaging that the first and last 128 bits of the hash resolve to that architecture's packaged data and hash PARTUUIDs, respectively. Linux must activate that dm-verity pair and mount the verified EROFS root. Preserve the embedded `.cmdline` when moving the UKI to its canonical EFI path.
 
 Use firmware `LoadImage` via the exact ESP and file device path. Do not retry recovery through a pathless buffer load. Start the UKI without external EFI load options. When Secure Boot is enforced, firmware validates the PE image and `systemd-stub` uses its embedded `.cmdline`. External options cannot be relied on under Secure Boot when this section is present. Test signed recovery and rejection of untrusted images separately, with enrolled guest keys.
 
 [Boot Loader Interface](https://systemd.io/BOOT_LOADER_INTERFACE/) · [Discoverable Partitions Specification](https://uapi-group.org/specifications/specs/discoverable_partitions_specification/) · [systemd-stub](https://www.freedesktop.org/software/systemd/man/latest/systemd-stub.html) · [systemd-veritysetup-generator](https://www.freedesktop.org/software/systemd/man/latest/systemd-veritysetup-generator.html)
+
+## 9a. Installation & Execution Profiles and Network Recovery Bootstrap (SBM 0.0.2–0.1+)
+
+Per [ADR-012](../architecture-decisions/ADR-012-profiles-network-recovery-modularity-and-ux.md), SBM separates the minimal UEFI boot manager from how and where `sbm-core` and optional modules are stored and executed.
+
+### Supported Profiles
+
+| Profile | Milestone | Boot Manager | `sbm-core` Source | Persistent Cache Policy | Target SSD Rule |
+|---|---|---|---|---|---|
+| `efi-only` | 0.0.2 | `\EFI\sbm\sbm-<arch>.efi` (`< 1 MiB` target) | None locally installed (may chainload OSes or launch future net/USB recovery) | None | Existing ESP only; **MUST** be independently useful and upgradeable without reinstalling `sbm-uefi` |
+| `offline-full` | 0.0.1 (USB) / 0.0.2 (SSD) | Local ESP | Local verified EROFS + verity pair | Self-contained on boot medium | Authorized target medium only |
+| `cached-usb` | 0.0.3 / 0.1 | USB ESP | Verified `sbm-core` + selected `sysext` modules cached on USB | Writable authorized USB cache partition (`/var/lib/extensions` or cache slot) | **MUST NOT** cache to internal SSD |
+| `cached-ssd` | 0.0.3 / 0.1 | Internal ESP | Verified `sbm-core` + selected `sysext` modules cached on authorized internal partition | Explicit opt-in internal SBM partition only | **MUST NOT** enable without explicit user authorization |
+| `ram-only` | 0.1 | USB or Internal ESP | Local or network-fetched verified EROFS + signed `sysext` DDIs loaded strictly in RAM (`tmpfs`/`ramfs` + loopback `dm-verity`) | **Zero persistent disk writes** | **MUST NOT** use target internal SSD for temporary storage, cache, logs, or swap (even under low RAM) |
+| `net-ondemand` | 0.1 | USB or Internal ESP | Authenticated HTTPS download via standard UEFI HTTP(S) Boot or signed Linux Network-Bootstrap UKI | RAM-only by default, or explicitly authorized `cached-usb`/`cached-ssd` | **MUST NOT** touch internal disks during bootstrap or download |
+| `modular-custom` | 0.0.3 (initial) / 0.1 (full) | Local ESP | Minimal `< 500 MiB` compressed base + user-selected signed `systemd-sysext`/`systemd-confext` DDIs (Spec 07 §17a) | Matches active cache policy (`ram-only`, `cached-usb`, or `cached-ssd`) | Same strict authorization rule |
+
+### Upgradeability of `efi-only`
+
+An `efi-only` installation MUST allow upgrading to `net-ondemand`, `cached-ssd`, `offline-full`, or `modular-custom` purely by writing verified recovery manifests/images and optional extension directories—without reinstalling, re-registering, or replacing the `sbm-uefi` boot manager binary or altering unrelated OS boot entries.
+
+### Standards-Based Network Recovery Bootstrap (SBM 0.1)
+
+SBM MUST NOT invent a custom network boot protocol. Network recovery relies on two standard mechanisms:
+
+1. **UEFI HTTP(S) Boot (Wired Fast Path):** For `efi-only` installations on modern UEFI 2.5+ firmware with Ethernet and trusted TLS/Secure Boot policy, standard firmware HTTP(S) Boot (or operator-managed iPXE interop) fetches a signed UKI directly without custom SBM network-boot code.
+2. **Signed Minimal Linux Network-Bootstrap UKI + `dm-verity` `switch-root` (Primary Consumer Path):** For `SBM Manager`-prepared recovery USBs (or optional ESPs) targeting real consumer laptops with Wi-Fi or missing firmware CA bundles, `sbm-uefi` launches a compact signed Linux bootstrap UKI via standard `LoadImage`. The bootstrap initramfs:
+   - Initializes Ethernet and consumer Wi-Fi (`iwd`/`wpa_supplicant` + curated `linux-firmware`), consuming optional non-secret/recovery-scoped network config prepared by `SBM Manager`.
+   - Downloads the signed TUF release metadata, `sbm-core` `dm-verity` EROFS image, and requested signed `systemd-sysext` DDIs over HTTPS (using standard Linux CA roots + pinned TUF root keys) with **HTTP `Range` resume** on interrupted transfers.
+   - Verifies SHA-256 digests, `dm-verity` root hashes, and PKCS#7 extension signatures before mounting.
+   - Transitions via **`switch-root`** (same signed kernel, preserving Secure Boot lockdown and avoiding `kexec_file_load(2)` UKI/initrd limitations) while carrying the resolved boot-media identity and Spec 03 handoff context across `switch-root`.
+
+### Network Recovery Failure Modes & Safety Invariants
+
+- **Insufficient RAM (`≤ 2 GiB`):** Before buffering a network-fetched image into RAM, the bootstrapper MUST measure available RAM against the manifest's `min_ram_bytes` requirement. If RAM is insufficient for `ram-only`, it MUST fail clearly with actionable choices (use explicitly authorized `cached-usb`, select a smaller minimal profile, or boot local offline media) and **MUST NEVER** silently create swap or scratch files on any internal SSD.
+- **Unavailable Networking / Captive Portals / TLS Errors:** Never hang indefinitely; surface clear link/Wi-Fi/DNS/TLS diagnostics, allow interactive Wi-Fi selection or retry, and offer immediate fallback to local offline recovery media if present on the USB or internal ESP.
+- **Interrupted Downloads:** Persist partial verified chunks only in RAM (in `ram-only` mode) or on an explicitly authorized cache partition (`cached-usb`/`cached-ssd`), resuming via HTTP `Range` and re-verifying full cryptographic digests before activation.
+- **Zero Unauthorized Internal-Disk Caching:** Internal disks MUST remain untouched (read-only / unmounted) throughout network bootstrap and `ram-only` execution unless and until the user explicitly initiates and confirms an authorized repair or installation plan.
 
 ## 10. Return path
 

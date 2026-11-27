@@ -20,7 +20,8 @@ Modeled after dedicated documentation repositories (`0SFS/docs`), this repositor
 - [ADR-008: Virtualization, Emulation, Fault Injection & Benchmark Methodology](architecture-decisions/ADR-008-testing-virtualization-and-benchmark-methodology.md)
 - [ADR-009: Architecture-Specific Offline Preview Media (With Optional Experimental Dual-Arch)](architecture-decisions/ADR-009-dual-architecture-offline-preview-media.md)
 - [ADR-010: Open-Source Reuse & Engineering Principles](architecture-decisions/ADR-010-open-source-reuse-and-engineering-principles.md)
-- [ADR-011: Native Interactive UI Preview, OSS Dev Infrastructure, Internal SSD Installation & Media Creator Strategy](architecture-decisions/ADR-011-native-preview-internal-install-and-media-creator.md)
+- [ADR-011: Native Interactive UI Preview, OSS Dev Infrastructure, Internal SSD Installation & SBM Manager Strategy](architecture-decisions/ADR-011-native-preview-internal-install-and-media-creator.md)
+- [ADR-012: Configurable Installation Profiles, Network Recovery, 0SFS-Style Modularity, SBM Manager Naming & First-Principles UX](architecture-decisions/ADR-012-profiles-network-recovery-modularity-and-ux.md)
 
 ### Versioned Specifications (`specifications/`)
 - [Specifications Index & Versioning Policy](specifications/README.md)
