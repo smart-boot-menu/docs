@@ -60,4 +60,13 @@ A `BootTargetId` MUST be **stable across reboots and disk enumeration order chan
   - `icon_hint: Option<String>`
   - `removable_media: bool`
   - `hidden: bool`
-  - `verified_signature: Option<bool>`
+  - `verified_signature: Option<bool>` (`Some(true)` only when PE signature trust was independently established; a manifest SHA-256 match is an integrity check, not a signature, and leaves this `None`)
+
+### Installed operating systems are not boot targets
+
+An installed operating system and a boot target are different things:
+
+- **Installed OS** (`os:<partition_guid>`, produced by SBM Core's storage inventory) names an operating system found on disk by its root or system partition. It is descriptive inventory. It is not a `BootTargetId`, the picker never accepts it, and no component may write it into a boot request.
+- **Boot target** (`efi:`, `bls:`, `sbm-core:`, `apple-macos:`) names one executable entry the picker discovered on an ESP. One installed OS may own several boot targets (for example two installed kernels, a shim and a fallback loader, or a vendor loader and a firmware load option), and some boot targets belong to no installed OS that Core can recognise.
+
+Core obtains boot targets only from the `discovered_targets` of a verified integrated handoff (Spec 03 §8). It must never infer a boot target from an OS partition UUID, and it must not guess which target to boot when several belong to one OS; the user picks one.
